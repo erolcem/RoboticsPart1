@@ -4,10 +4,25 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sitestate"
-version = "2.0.0"
+version = "2.0.1"
 description = "Site State Platform: plug-and-play sensing to a versioned, uncertainty-aware site model"
+readme = "README.md"
 requires-python = ">=3.10"
 dependencies = ["numpy>=1.24"]
+authors = [{ name = "Erol", email = "erolcem211@gmail.com" }]
+keywords = [
+    "construction", "robotics", "digital-twin", "slam", "reality-capture",
+    "change-detection", "occupancy-grid", "provenance",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+]
+# License deliberately not declared yet: choosing one (proprietary vs open
+# core) is a business decision - all rights reserved until then.
 
 [project.optional-dependencies]
 dev = ["pytest>=7"]

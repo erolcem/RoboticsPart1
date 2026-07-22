@@ -26,12 +26,6 @@ from sitestate.review import ReviewQueue
 from sitestate.sensors import SimCarrier, SimFiducialCamera, SimLidar2D, SimWorld
 
 
-@pytest.fixture(scope="module")
-def full(tmp_path_factory):
-    out = tmp_path_factory.mktemp("demo_v1")
-    platform, m1, m2, version = demo.run_full_demo(out, verbose=False)
-    return platform, m1, m2, version, out
-
 
 # -- core algorithm upgrades -------------------------------------------------
 
@@ -203,9 +197,9 @@ def test_report_embeds_linked_imagery_and_qa(full):
 def test_project_json_roundtrip(full, tmp_path):
     from sitestate import SiteStatePlatform
 
-    p1 = SiteStatePlatform(tmp_path / "proj", project={"name": "X", "zones": {}})
-    p2 = SiteStatePlatform(tmp_path / "proj")  # no project arg -> loads file
-    assert p2.project["name"] == "X"
+    SiteStatePlatform(tmp_path / "proj", project={"name": "X", "zones": {}})
+    reloaded = SiteStatePlatform(tmp_path / "proj")  # no project arg -> loads file
+    assert reloaded.project["name"] == "X"
 
 
 def test_cli_init_and_missions(tmp_path, capsys):

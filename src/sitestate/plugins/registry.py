@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from .base import OutputAdapter, ProcessingPlugin, SensorAdapter
+from .base import OutputAdapter, ProcessingPlugin
 
 
 class PluginRegistry:

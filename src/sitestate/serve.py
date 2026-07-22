@@ -145,7 +145,12 @@ class _Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _json(self, obj, code: int = 200) -> None:
-        self._send(code, json.dumps(obj, indent=2).encode(), "application/json")
+        from .ledger.ledger import _jsonable
+
+        # strict JSON on the wire: non-finite floats (e.g. an unbounded
+        # freshness age) must never leak as invalid NaN/Infinity literals
+        body = json.dumps(_jsonable(obj), indent=2, allow_nan=False).encode()
+        self._send(code, body, "application/json")
 
     def do_GET(self):  # noqa: N802 (stdlib API)
         url = urlparse(self.path)

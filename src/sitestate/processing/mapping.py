@@ -15,8 +15,6 @@ plus evidential ignorance (epistemic: never saw enough) and conflict
 
 from __future__ import annotations
 
-import math
-
 import numpy as np
 
 from ..plugins.base import PluginManifest, ProcessingContext, ProcessingPlugin

@@ -23,7 +23,8 @@ open demo_output/report.html          # the human-reviewable package
 sitestate serve --project demo_output/project_data
 #   -> http://127.0.0.1:8752/viewer   # click the map to query the site state
 sitestate benchmark --seeds 5         # score against simulation ground truth
-pytest tests/                         # 33 end-to-end tests (~70 s)
+pytest tests/                         # 34 end-to-end tests (~2 min)
+python examples/custom_asset_tracking.py   # extension tutorial, executable
 
 docker compose up --build             # or fully containerized:
 #   -> http://127.0.0.1:8752/viewer   # (see docs/deployment.md)
@@ -275,6 +276,12 @@ tested (byte-identical observation counts, same registration quality).
 
 ## 8. How to extend it (recipes)
 
+**Start here:** [examples/custom_asset_tracking.py](examples/custom_asset_tracking.py)
+is the extension tutorial in executable form — a complete new sensor type
+(RFID scanner) plus a new processing plug-in (asset tracking) added
+without touching a single core file, run end-to-end with provenance. It
+is exercised by the test suite, so it can never rot.
+
 **Add a real sensor** — implement `SensorAdapter` with an honest manifest;
 buffer your driver's async data; return it from `sample(t)`. Easiest
 hardware path today: make the rig write the dataset format. Everything
@@ -334,7 +341,13 @@ it as-is.
   tracking over time. CI runs tests on Python 3.10/3.12, a benchmark
   smoke run, and a Docker build + container smoke test.
 
-## 11. Roadmap position
+## 11. License
+
+Deliberately not chosen yet — picking proprietary vs. open-core is a
+business decision for the startup; until then all rights are reserved.
+(`pyproject.toml` carries the same note.)
+
+## 12. Roadmap position
 
 Phases 0–4 of the proposal exist in software, measured against a
 simulator that now models occlusion, drift, sensor failure and stale

@@ -26,7 +26,6 @@ from ..core.entities import (
     Observation,
     ProcessingActivity,
     Sensor,
-    SensorManifest,
     SiteStateVersion,
     new_id,
 )
@@ -55,15 +54,22 @@ CREATE INDEX IF NOT EXISTS idx_claims_mission ON claims (mission_id, kind, statu
 
 
 def _jsonable(value: Any) -> Any:
-    """Convert numpy scalars/arrays inside payloads to plain JSON types."""
+    """Convert numpy scalars/arrays inside payloads to plain JSON types.
+
+    Non-finite floats become None: Python's json module would emit the
+    NaN/Infinity literals, which are invalid JSON and break strict
+    consumers (browsers' JSON.parse, jq, most other languages).
+    """
     if isinstance(value, dict):
         return {k: _jsonable(v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
         return [_jsonable(v) for v in value]
     if isinstance(value, np.ndarray):
-        return value.tolist()
+        return _jsonable(value.tolist())
     if isinstance(value, (np.floating, np.integer)):
-        return value.item()
+        value = value.item()
+    if isinstance(value, float) and not np.isfinite(value):
+        return None
     return value
 
 

@@ -49,6 +49,17 @@ demo generates a project inside the container, server answers `/healthz`.
 - a 1-seed benchmark smoke run (thresholds are asserted in the tests),
 - Docker build + container smoke test.
 
+## Troubleshooting
+
+| Symptom | Cause / fix |
+|---|---|
+| `error: no committed site-state version in this project` | Run the pipeline and `commit_version` first (the demo does this); `serve`/`query`/`plan-capture` need at least one version. |
+| Server port answers but requests hang right after container start | Docker's proxy accepts connections before the app binds; retry for a few seconds (the image HEALTHCHECK covers this). |
+| `registration` claim rejected with `insufficient_control_points` | Fewer than 3 surveyed fiducials were observed — check `project.json` control points and fiducial visibility. This is deliberate: the platform flags rather than guesses. |
+| A plug-in activity is `skipped: inputs never became available` | Its `consumes` lists a data type no subscribed sensor provides or a claim kind no earlier plug-in produced — see `sitestate claims` and the plug-in manifests. |
+| Change list contains entries flagged *possible registration artifact* | Working as intended: sub-cell misregistration echoes are shown with reduced confidence for one-glance review dismissal, not hidden. |
+| `pip install` wants a compiler | It shouldn't: the only dependency is numpy (wheels exist for all supported platforms). Check you're on Python ≥ 3.10. |
+
 ## Operational notes
 
 - **Data layout**: everything lives under the project directory

@@ -147,7 +147,7 @@ class ProcessingActivity:
     input_claim_ids: list[str] = field(default_factory=list)
     started_at: str = ""
     ended_at: str = ""
-    status: str = "running"  # running | succeeded | failed
+    status: str = "running"  # running | succeeded | failed | skipped
     notes: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:

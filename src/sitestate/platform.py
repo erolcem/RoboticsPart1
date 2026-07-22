@@ -208,7 +208,9 @@ class SiteStatePlatform:
                 activities.append(self.process(name, mission_id, **kwargs))
                 done.add(name)
                 progressed = True
-        # record what could not run, and why - never silently skip
+        # record what could not run, and why - never silently skip. Status
+        # 'skipped' (not 'failed'): nothing broke, the preconditions were
+        # absent - e.g. a cross-mission plug-in on the baseline mission.
         for plugin in plugins:
             name = plugin.manifest.name
             if name in done:
@@ -220,7 +222,7 @@ class SiteStatePlatform:
                 mission_id=mission_id,
                 started_at=now_iso(),
                 ended_at=now_iso(),
-                status="failed",
+                status="skipped",
             )
             if plugin.manifest.cross_mission and not baseline_mission_id:
                 activity.notes.append("skipped: cross-mission plug-in with no baseline_mission_id")

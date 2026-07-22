@@ -265,7 +265,14 @@ def main(argv: list[str] | None = None) -> None:
     sp.set_defaults(fn=cmd_serve)
 
     args = p.parse_args(argv)
-    args.fn(args)
+    try:
+        args.fn(args)
+    except (KeyError, RuntimeError) as exc:
+        # domain errors (unknown claim/version id, no committed version, ...)
+        # should read as messages, not tracebacks
+        sys.exit(f"error: {exc}")
+    except KeyboardInterrupt:
+        sys.exit(130)
 
 
 if __name__ == "__main__":

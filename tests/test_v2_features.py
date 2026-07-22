@@ -10,20 +10,10 @@ import threading
 import urllib.request
 from pathlib import Path
 
-import numpy as np
-import pytest
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from sitestate import demo
 from sitestate.benchmark import run_benchmark, run_scenario
 
-
-@pytest.fixture(scope="module")
-def full(tmp_path_factory):
-    out = tmp_path_factory.mktemp("demo_v2")
-    platform, m1, m2, version = demo.run_full_demo(out, verbose=False)
-    return platform, m1, m2, version, out
 
 
 def test_pose_graph_payload_and_factors(full):
@@ -110,3 +100,17 @@ def test_health_and_version_endpoints(full):
     finally:
         server.shutdown()
         thread.join(timeout=5)
+
+
+def test_worked_example_runs(tmp_path):
+    """examples/custom_asset_tracking.py is living documentation of the
+    extension recipes - it must keep working."""
+    import subprocess
+
+    script = Path(__file__).resolve().parents[1] / "examples" / "custom_asset_tracking.py"
+    out = subprocess.run([sys.executable, str(script)], capture_output=True,
+                         text=True, timeout=300)
+    assert out.returncode == 0, out.stderr
+    assert "CRATE-A17" in out.stdout and "GENSET-02" in out.stdout
+    assert "asset-tracking v0.1.0" in out.stdout
+    assert "sim-rfid-scanner" in out.stdout

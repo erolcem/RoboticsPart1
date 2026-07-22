@@ -9,7 +9,6 @@ import sys
 from pathlib import Path
 
 import numpy as np
-import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -20,12 +19,6 @@ from sitestate.processing.mapping import OccupancyMapping
 from sitestate.query import SiteStateQuery
 from sitestate.review import ReviewQueue
 
-
-@pytest.fixture(scope="module")
-def full(tmp_path_factory):
-    out = tmp_path_factory.mktemp("demo")
-    platform, m1, m2, version = demo.run_full_demo(out, verbose=False)
-    return platform, m1, m2, version, out
 
 
 def test_plan_comparison_finds_seeded_deviations(full):
