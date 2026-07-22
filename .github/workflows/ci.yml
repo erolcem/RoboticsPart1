@@ -1,0 +1,35 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e .[dev]
+      - run: pytest tests/ -q
+      - name: benchmark smoke (1 seed, thresholds asserted in tests)
+        run: sitestate benchmark --seeds 1
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t sitestate .
+      - name: container smoke test
+        run: |
+          docker run --rm -v ss-data:/data sitestate demo --out /data/demo
+          docker run --rm -d --name ss -p 8752:8752 -v ss-data:/data \
+            sitestate serve --project /data/demo/project_data --host 0.0.0.0
+          sleep 5
+          curl -sf http://127.0.0.1:8752/healthz
+          docker rm -f ss

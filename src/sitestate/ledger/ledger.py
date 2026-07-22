@@ -45,6 +45,9 @@ CREATE TABLE IF NOT EXISTS claims       (
     id TEXT PRIMARY KEY, mission_id TEXT, activity_id TEXT,
     kind TEXT, subject TEXT, status TEXT, json TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS versions     (id TEXT PRIMARY KEY, json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS reviews      (
+    id TEXT PRIMARY KEY, claim_id TEXT, action TEXT, reviewer TEXT,
+    note TEXT, created_at TEXT);
 CREATE INDEX IF NOT EXISTS idx_obs_mission ON observations (mission_id, data_type);
 CREATE INDEX IF NOT EXISTS idx_ev_obs ON evidence (observation_id);
 CREATE INDEX IF NOT EXISTS idx_claims_mission ON claims (mission_id, kind, status);
@@ -69,7 +72,10 @@ class ObservationLedger:
         self.root = Path(root)
         self.blob_dir = self.root / "evidence"
         self.blob_dir.mkdir(parents=True, exist_ok=True)
-        self.db = sqlite3.connect(self.root / "ledger.sqlite")
+        # check_same_thread=False lets the read-only HTTP server answer from
+        # worker threads; sqlite's serialized mode makes the shared
+        # connection safe, and all writes happen on the platform's thread
+        self.db = sqlite3.connect(self.root / "ledger.sqlite", check_same_thread=False)
         self.db.executescript(_SCHEMA)
         self.db.commit()
 
@@ -251,6 +257,28 @@ class ObservationLedger:
 
     def version(self, version_id: str) -> dict | None:
         return self._get("versions", version_id)
+
+    # -- reviews (human-in-the-loop audit trail) ---------------------------
+    def add_review(self, claim_id: str, action: str, reviewer: str, note: str = "") -> str:
+        from ..core.entities import new_id, now_iso
+
+        rid = new_id("rev")
+        self.db.execute(
+            "INSERT INTO reviews (id, claim_id, action, reviewer, note, created_at) "
+            "VALUES (?,?,?,?,?,?)",
+            (rid, claim_id, action, reviewer, note, now_iso()),
+        )
+        self.db.commit()
+        return rid
+
+    def reviews(self, claim_id: str | None = None) -> list[dict]:
+        q = "SELECT id, claim_id, action, reviewer, note, created_at FROM reviews"
+        args: list[Any] = []
+        if claim_id:
+            q += " WHERE claim_id=?"
+            args.append(claim_id)
+        cols = ["id", "claim_id", "action", "reviewer", "note", "created_at"]
+        return [dict(zip(cols, r)) for r in self.db.execute(q, args)]
 
     # -- provenance --------------------------------------------------------
     def trace(self, claim_id: str) -> dict[str, Any]:

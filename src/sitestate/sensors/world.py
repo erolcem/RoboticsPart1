@@ -40,22 +40,32 @@ class SimWorld:
         return a, b
 
     def raycast(self, origin: tuple[float, float], angles: np.ndarray, max_range: float) -> np.ndarray:
-        """Nearest wall hit per ray angle; max_range where nothing is hit."""
+        """Nearest wall hit per ray angle; max_range where nothing is hit.
+        Fully vectorised over rays x segments."""
         a, b = self._segment_arrays()
-        ab = b - a
+        ab = b - a  # (M, 2)
         o = np.asarray(origin, dtype=float)
-        ao = a - o
-        ranges = np.full(len(angles), max_range, dtype=float)
-        for i, ang in enumerate(angles):
-            d = np.array([math.cos(ang), math.sin(ang)])
-            denom = d[0] * ab[:, 1] - d[1] * ab[:, 0]
-            with np.errstate(divide="ignore", invalid="ignore"):
-                t = (ao[:, 0] * ab[:, 1] - ao[:, 1] * ab[:, 0]) / denom
-                u = (ao[:, 0] * d[1] - ao[:, 1] * d[0]) / denom
-            valid = (np.abs(denom) > 1e-12) & (t > 1e-6) & (u >= 0.0) & (u <= 1.0)
-            if valid.any():
-                ranges[i] = min(max_range, float(t[valid].min()))
-        return ranges
+        ao = a - o  # (M, 2)
+        d = np.stack([np.cos(angles), np.sin(angles)], axis=1)  # (R, 2)
+        denom = d[:, 0:1] * ab[None, :, 1] - d[:, 1:2] * ab[None, :, 0]  # (R, M)
+        cross_ao_ab = ao[:, 0] * ab[:, 1] - ao[:, 1] * ab[:, 0]  # (M,)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            t = cross_ao_ab[None, :] / denom
+            u = (ao[None, :, 0] * d[:, 1:2] - ao[None, :, 1] * d[:, 0:1]) / denom
+        valid = (np.abs(denom) > 1e-12) & (t > 1e-6) & (u >= 0.0) & (u <= 1.0)
+        t = np.where(valid, t, np.inf)
+        return np.minimum(t.min(axis=1), max_range)
+
+    def visible(self, origin: tuple[float, float], target: tuple[float, float]) -> bool:
+        """Line-of-sight check: is the target visible from origin, or does a
+        wall block the ray first? Used for realistic fiducial occlusion."""
+        dx, dy = target[0] - origin[0], target[1] - origin[1]
+        dist = math.hypot(dx, dy)
+        if dist < 1e-9:
+            return True
+        angle = math.atan2(dy, dx)
+        hit = self.raycast(origin, np.array([angle]), max_range=dist + 1.0)[0]
+        return hit >= dist - 0.05
 
 
 class SimCarrier:

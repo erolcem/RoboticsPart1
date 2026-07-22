@@ -68,6 +68,7 @@ class PluginManifest:
     description: str = ""
     compute: str = "cpu-light"
     validation: str = "unvalidated"
+    cross_mission: bool = False  # needs a baseline_mission_id to compare against
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -79,6 +80,7 @@ class PluginManifest:
             "description": self.description,
             "compute": self.compute,
             "validation": self.validation,
+            "cross_mission": self.cross_mission,
         }
 
 
@@ -140,6 +142,11 @@ class ProcessingContext:
         status: str = "accepted",
         observed_at: str = "",
     ) -> Claim:
+        if not observed_at:
+            # freshness reflects when the evidence was captured, not when it
+            # was processed - reprocessing old data must not look "fresh"
+            mission = self.ledger.mission(self.mission_id) or {}
+            observed_at = mission.get("ended_at") or now_iso()
         claim = Claim(
             id=new_id("clm"),
             kind=kind,
@@ -150,7 +157,7 @@ class ProcessingContext:
             evidence_ids=evidence_ids or [],
             subject=subject,
             status=status,
-            observed_at=observed_at or now_iso(),
+            observed_at=observed_at,
         )
         self.emitted_claims.append(claim)
         return claim

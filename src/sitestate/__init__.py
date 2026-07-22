@@ -15,4 +15,4 @@ Layers (see the v0.1 proposal document):
 from .platform import SiteStatePlatform
 
 __all__ = ["SiteStatePlatform"]
-__version__ = "0.1.0"
+__version__ = "2.0.0"

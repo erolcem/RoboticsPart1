@@ -28,12 +28,16 @@ class SimLidar2D(SensorAdapter):
         rate_hz: float = 1.0,
         seed: int = 1,
         name: str = "sim-lidar-2d",
+        fail_after: float | None = None,
     ):
         self.carrier = carrier
         self.world = world
         self.n_rays = n_rays
         self.max_range = max_range
         self.range_noise = range_noise
+        # simulated hardware failure at mission time `fail_after` seconds;
+        # exercises the degraded-operation requirement
+        self.fail_after = fail_after
         self.period = 1.0 / rate_hz
         self._last_t = -1e9
         self._rng = np.random.default_rng(seed)
@@ -54,9 +58,13 @@ class SimLidar2D(SensorAdapter):
         return self._manifest
 
     def health_check(self) -> dict:
-        return {"ok": True, "notes": ["simulated device, always healthy"]}
+        if self.fail_after is not None and self._last_t >= self.fail_after:
+            return {"ok": False, "notes": [f"no data since t={self.fail_after}s (simulated fault)"]}
+        return {"ok": self.fail_after != 0.0, "notes": ["simulated device"]}
 
     def sample(self, t: float) -> list[Sample]:
+        if self.fail_after is not None and t >= self.fail_after:
+            return []
         if t - self._last_t < self.period - 1e-9:
             return []
         self._last_t = t
@@ -136,11 +144,15 @@ class SimFiducialCamera(SensorAdapter):
         rate_hz: float = 1.0,
         seed: int = 2,
         name: str = "sim-fiducial-camera",
+        calibration_bias: tuple[float, float] = (0.0, 0.0),
     ):
         self.carrier = carrier
         self.world = world
         self.detection_range = detection_range
         self.noise = noise
+        # a systematic sensor-frame offset simulating stale/knocked
+        # calibration; the calibration-check plug-in must detect it
+        self.calibration_bias = np.asarray(calibration_bias, dtype=float)
         self.period = 1.0 / rate_hz
         self._last_t = -1e9
         self._rng = np.random.default_rng(seed)
@@ -151,7 +163,7 @@ class SimFiducialCamera(SensorAdapter):
             units={"position": "m"},
             expected_accuracy={"detection_sigma_m": noise},
             calibration_version="sim-cal-1",
-            limitations=[f"detection range {detection_range} m", "requires line of sight (not simulated)"],
+            limitations=[f"detection range {detection_range} m", "requires line of sight"],
         )
 
     @property
@@ -172,17 +184,25 @@ class SimFiducialCamera(SensorAdapter):
             dx, dy = fx - tx, fy - ty
             if math.hypot(dx, dy) > self.detection_range:
                 continue
-            # true relative measurement (sensor frame), with noise
+            if not self.world.visible((tx, ty), (fx, fy)):
+                continue  # a wall blocks the target - no detection
+            # true relative measurement (sensor frame), with noise and any
+            # systematic calibration bias
             c, s = math.cos(-tth), math.sin(-tth)
             rel = np.array([c * dx - s * dy, s * dx + c * dy])
-            rel += self._rng.normal(0, self.noise, size=2)
+            rel += self._rng.normal(0, self.noise, size=2) + self.calibration_bias
             # where the carrier believes the fiducial is, in its estimated frame
             ce, se = math.cos(eth), math.sin(eth)
             est = np.array([ex + ce * rel[0] - se * rel[1], ey + se * rel[0] + ce * rel[1]])
             samples.append(
                 Sample(
                     data_type="fiducial_detection",
-                    payload={"fiducial_id": fid, "position_est": est, "relative": rel},
+                    payload={
+                        "fiducial_id": fid,
+                        "position_est": est,
+                        "relative": rel,  # sensor-frame measurement
+                        "pose_est": np.array([ex, ey, eth]),
+                    },
                     quality={"detection_sigma_m": self.noise, "pose_sigma_xy": sigma},
                     frame="mission-estimated",
                 )

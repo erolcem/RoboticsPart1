@@ -1,0 +1,10 @@
+demo_output/
+.pytest_cache/
+__pycache__/
+*.pyc
+*.egg-info/
+.git/
+docs/
+tests/
+examples/
+*.docx

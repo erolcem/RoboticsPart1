@@ -14,25 +14,14 @@ import numpy as np
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "examples"))
 
-from sitestate import SiteStatePlatform
-from sitestate.processing import (
-    ChangeDetection,
-    ControlPointRegistration,
-    CoverageAnalysis,
-    OccupancyMapping,
-)
-import demo_two_missions as demo
+from sitestate import demo
 
 
 @pytest.fixture(scope="module")
 def pipeline(tmp_path_factory):
     root = tmp_path_factory.mktemp("project")
-    platform = SiteStatePlatform(root, project=demo.PROJECT)
-    for plugin in (ControlPointRegistration(), OccupancyMapping(),
-                   CoverageAnalysis(), ChangeDetection()):
-        platform.registry.register_processor(plugin)
+    platform = demo.make_platform(root)
     m1 = demo.run_capture(platform, demo.build_world(1), "day1",
                           frame_offset=(0.35, -0.22, 0.03), seed=10)
     m2 = demo.run_capture(platform, demo.build_world(2), "day2",
@@ -62,12 +51,12 @@ def test_change_detection_finds_seeded_changes(pipeline):
     appeared = [c for c in changes if c["payload"]["change_type"] == "appeared"]
     disappeared = [c for c in changes if c["payload"]["change_type"] == "disappeared"]
 
-    # the new pallet at (11.5..12.7, 6.8..7.8) must be among appeared regions
+    # the new pallet at (12.9..13.9, 5.4..6.4) must be among appeared regions
     assert any(
-        11.0 <= c["payload"]["centroid"][0] <= 13.3 and 6.3 <= c["payload"]["centroid"][1] <= 8.3
+        12.5 <= c["payload"]["centroid"][0] <= 14.2 and 5.0 <= c["payload"]["centroid"][1] <= 6.8
         for c in appeared
     ), f"pallet not found in {[c['payload']['centroid'] for c in appeared]}"
-    # the removed material stack around (2.5..3.7, 6.5..7.4) must be among disappeared
+    # the removed material stack around (2.5..3.7, 6.4..7.3) must be among disappeared
     assert any(
         2.0 <= c["payload"]["centroid"][0] <= 4.2 and 6.0 <= c["payload"]["centroid"][1] <= 7.9
         for c in disappeared

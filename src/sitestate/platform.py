@@ -11,6 +11,7 @@ Workflow (proposal section 8):
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -37,7 +38,14 @@ class SiteStatePlatform:
         self.ledger = ObservationLedger(self.root)
         self.registry = PluginRegistry()
         self.state = SiteStateModel(self.ledger)
-        self.project = project or {}
+        project_file = self.root / "project.json"
+        if project is not None:
+            self.project = project
+            project_file.write_text(json.dumps(project, indent=2))
+        elif project_file.exists():
+            self.project = json.loads(project_file.read_text())
+        else:
+            self.project = {}
         self._adapters: dict[str, SensorAdapter] = {}  # sensor_id -> adapter
 
     # -- sensor subscription ----------------------------------------------
@@ -160,10 +168,68 @@ class SiteStatePlatform:
         activity.ended_at = now_iso()
         self.ledger.add_activity(activity)
         for claim in ctx.emitted_claims:
-            if claim.subject and claim.status == "accepted":
-                self.state.supersede(mission_id, claim.kind, claim.subject, activity.id)
-            self.ledger.add_claim(claim)
+            self.state.integrate(claim, plugin.manifest.name)
         return activity
+
+    def process_all(
+        self,
+        mission_id: str,
+        baseline_mission_id: str = "",
+        params: dict[str, dict[str, Any]] | None = None,
+    ) -> list[ProcessingActivity]:
+        """Run every registered plug-in whose inputs are (or become)
+        satisfiable, in dependency order: after each pass, freshly produced
+        claim kinds may unlock further plug-ins, so iterate to fixpoint.
+
+        Cross-mission plug-ins (manifest.cross_mission) receive
+        `baseline_mission_id` and are skipped with an explanatory failed
+        activity when no baseline is given. Per-plug-in parameters come from
+        `params[plugin_name]`, falling back to the project configuration's
+        `pipeline_params`.
+        """
+        params = {**(self.project.get("pipeline_params") or {}), **(params or {})}
+        activities: list[ProcessingActivity] = []
+        done: set[str] = set()
+        plugins = self.registry.processors()
+        progressed = True
+        while progressed:
+            progressed = False
+            for plugin in plugins:
+                name = plugin.manifest.name
+                if name in done:
+                    continue
+                if self.registry.missing_inputs(name, self.available_inputs(mission_id)):
+                    continue
+                kwargs = dict(params.get(name, {}))
+                if plugin.manifest.cross_mission:
+                    if not baseline_mission_id:
+                        continue  # handled below as skipped
+                    kwargs.setdefault("baseline_mission_id", baseline_mission_id)
+                activities.append(self.process(name, mission_id, **kwargs))
+                done.add(name)
+                progressed = True
+        # record what could not run, and why - never silently skip
+        for plugin in plugins:
+            name = plugin.manifest.name
+            if name in done:
+                continue
+            activity = ProcessingActivity(
+                id=new_id("act"),
+                plugin=name,
+                plugin_version=plugin.manifest.version,
+                mission_id=mission_id,
+                started_at=now_iso(),
+                ended_at=now_iso(),
+                status="failed",
+            )
+            if plugin.manifest.cross_mission and not baseline_mission_id:
+                activity.notes.append("skipped: cross-mission plug-in with no baseline_mission_id")
+            else:
+                missing = self.registry.missing_inputs(name, self.available_inputs(mission_id))
+                activity.notes.append(f"skipped: inputs never became available: {missing}")
+            self.ledger.add_activity(activity)
+            activities.append(activity)
+        return activities
 
     # -- versions & export -------------------------------------------------
     def commit_version(self, label: str, mission_ids: list[str] | None = None):
@@ -179,3 +245,19 @@ class SiteStatePlatform:
         out = Path(out_dir)
         out.mkdir(parents=True, exist_ok=True)
         return self.registry.output(output_name).render(self.ledger, version, out)
+
+
+def load_platform(root: str | Path) -> SiteStatePlatform:
+    """Open an existing project directory (config from its project.json)
+    with every built-in processing plug-in and output adapter registered."""
+    from .outputs import HtmlReport, JsonPackageExport
+    from .outputs.costmap_export import RobotCostmapExport
+    from .processing import ALL_PLUGINS
+
+    platform = SiteStatePlatform(root)  # project=None -> reads project.json
+    for plugin_cls in ALL_PLUGINS:
+        platform.registry.register_processor(plugin_cls())
+    platform.register_output(HtmlReport())
+    platform.register_output(JsonPackageExport())
+    platform.register_output(RobotCostmapExport())
+    return platform

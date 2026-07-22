@@ -1,0 +1,23 @@
+services:
+  # one-shot: generate the demo project into the shared volume
+  demo:
+    build: .
+    command: demo --out /data/demo
+    volumes:
+      - sitestate-data:/data
+
+  # the site-state API + viewer over that project
+  server:
+    build: .
+    command: serve --project /data/demo/project_data --host 0.0.0.0 --port 8752
+    ports:
+      - "8752:8752"
+    volumes:
+      - sitestate-data:/data
+    depends_on:
+      demo:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  sitestate-data:

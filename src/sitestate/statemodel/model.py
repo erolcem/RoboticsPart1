@@ -32,19 +32,30 @@ class SiteStateModel:
         ]
         return claims + competing
 
-    def supersede(self, mission_id: str, kind: str, subject: str, new_activity_id: str) -> int:
-        """Mark previous accepted claims on the same subject as superseded.
+    def integrate(self, claim, plugin_name: str) -> str:
+        """Fuse a freshly emitted claim into the model and return its status.
 
-        Called when a plug-in (possibly a newer version) re-derives the same
-        subject for the same mission - the reprocessing story: old claims are
-        retained for history, never deleted.
+        Rules (proposal section 9.4 - claims can coexist when models disagree):
+        * same subject re-derived by the SAME plug-in (a re-run, possibly a
+          newer version): previous claims become 'superseded' - retained for
+          history, never deleted;
+        * same subject already claimed by a DIFFERENT plug-in: the new claim
+          enters as 'competing' - both interpretations coexist until a human
+          review accepts one and rejects the other.
         """
-        n = 0
-        for c in self.ledger.claims(mission_id=mission_id, kind=kind, status="accepted"):
-            if c.get("subject") == subject and c["activity_id"] != new_activity_id:
-                self.ledger.set_claim_status(c["id"], "superseded")
-                n += 1
-        return n
+        if claim.subject and claim.status == "accepted":
+            for c in self.ledger.claims(
+                mission_id=claim.mission_id, kind=claim.kind, status="accepted"
+            ):
+                if c.get("subject") != claim.subject or c["activity_id"] == claim.activity_id:
+                    continue
+                other_plugin = (self.ledger.activity(c["activity_id"]) or {}).get("plugin")
+                if other_plugin == plugin_name:
+                    self.ledger.set_claim_status(c["id"], "superseded")
+                else:
+                    claim.status = "competing"
+        self.ledger.add_claim(claim)
+        return claim.status
 
     def commit_version(
         self, label: str, mission_ids: list[str] | None = None

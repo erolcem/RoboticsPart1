@@ -12,23 +12,13 @@ from __future__ import annotations
 import numpy as np
 
 from ..plugins.base import PluginManifest, ProcessingContext, ProcessingPlugin
-
-
-def _rigid_fit(src: np.ndarray, dst: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Least-squares rigid transform (R, t) with dst ~ R @ src + t."""
-    sc, dc = src.mean(axis=0), dst.mean(axis=0)
-    h = (src - sc).T @ (dst - dc)
-    u, _, vt = np.linalg.svd(h)
-    d = np.sign(np.linalg.det(vt.T @ u.T))
-    r = vt.T @ np.diag([1.0, d]) @ u.T
-    t = dc - r @ sc
-    return r, t
+from .icp import rigid_fit as _rigid_fit
 
 
 class ControlPointRegistration(ProcessingPlugin):
     _manifest = PluginManifest(
         name="control-point-registration",
-        version="0.1.0",
+        version="1.0.0",
         consumes=["fiducial_detection"],
         produces=["registration", "trajectory"],
         mode="offline",
