@@ -6,6 +6,9 @@ written here and nothing else.
 
 ## Claim kinds
 
+`ProcessingActivity.status` is one of `running | succeeded | failed |
+skipped` (skipped = preconditions absent, nothing broke).
+
 Every claim has: `id`, `kind`, `mission_id`, `activity_id`, `payload`,
 `confidence` (0–1), `evidence_ids`, `subject`, `status`
 (`accepted | competing | superseded | rejected`), `observed_at` (capture
@@ -15,7 +18,7 @@ time of the supporting evidence), `created_at`.
 |---|---|---|
 | `registration` | control-point-registration | `rotation` 2×2, `translation` [x,y], `rotation_deg`, `rmse_m`, `n_control_points`, `per_point_residuals_m`, `n_detections` |
 | `trajectory` | control-point-registration | `evidence_id` (trajectory grid), `n_poses`, `max_pose_sigma_m`, `path_length_m` |
-| `pose_corrections` | pose-refinement (pose-graph) | `evidence_id`, `method`, `n_scans`, `n_refined`, `factors` {odometry, landmark, scan_match}, `gauss_newton_iterations`, `final_cost`, `mean_correction_m`, `max_correction_m`, `mean_icp_rmse_m` |
+| `pose_corrections` | pose-refinement (pose-graph) | `evidence_id`, `method`, `robust_kernel` (gnc/huber), `n_scans`, `n_refined`, `factors` {odometry, landmark, scan_match}, `gauss_newton_iterations`, `final_cost`, `mean_correction_m`, `max_correction_m`, `mean_icp_rmse_m` |
 | `occupancy_geometry` | occupancy-mapping | `evidence_id` (occupancy grid), `res_m`, `n_scans`, `registration_rmse_m`, `mean_pose_sigma_m`, `decision_entropy`, `mean_ignorance`, `mean_conflict`, `high_conflict_cells`, `used_pose_corrections`, cell counts |
 | `coverage` | coverage-analysis | `evidence_id` (coverage grid), `fractions` {observed, insufficient, unobserved}, `by_zone` {zone: fractions}, `strong_obs` |
 | `change` | occupancy-change-detection | `change_type` (appeared/disappeared), `baseline_mission_id`, `median_observations`, `structure_adjacency`, `evidential_conflict`, `likely_registration_artifact`, `zone`, `imagery` {current: [ev ids], baseline: [ev ids]} |
@@ -83,7 +86,7 @@ Any recorder that writes this is a supported sensor source via
 | `/api/missions` | mission records |
 | `/api/claims?kind=&status=` | claims in the served version |
 | `/api/claims/<id>` / `…/trace` | one claim / its full provenance chain |
-| `/api/query?x=&y=` | occupancy, coverage, traversability, freshness, confidences, claims at point, source claim ids |
+| `/api/query?x=&y=` | occupancy, coverage, traversability, zone, freshness, confidences, claims at point, source claim ids |
 | `/api/plan` | proposed next capture (targets + waypoint tour) |
 | `/viewer`, `/report`, `/package.json` | interactive map, HTML report, JSON package |
 
@@ -95,8 +98,13 @@ Any recorder that writes this is a supported sensor source via
   grids, origin, resolution, confidence, source claim.
 - `planning_scene.json` (`sitestate/planning-scene@0.1`): labelled
   obstacle boxes with class probabilities and status.
-- `capture plan` (`sitestate/capture-plan@1.0`): targets + ordered
-  waypoints with reasons.
+- `capture plan` (`sitestate/capture-plan@2.0`): targets + waypoints
+  ordered by expected information gain per metre of travel; each
+  waypoint carries `expected_gain_cells`.
+- `scene_graph.json` (`sitestate/scene-graph@1.0`): layered site ->
+  zones -> entities/assets/changes/deviations with typed edges
+  (`in_zone`, `changed_since`, `deviates_from_plan`); every node keeps
+  its claim id for provenance.
 - `benchmark_report.json` (`sitestate/benchmark@2.0`): per-seed runs,
   mean/std summary of all measures, and confidence-calibration section
   (reliability bins + expected calibration error).

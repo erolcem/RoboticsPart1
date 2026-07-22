@@ -59,6 +59,12 @@ class SiteStateQuery:
         self.claims = [c for c in (ledger.claim(cid) for cid in version["claim_ids"]) if c]
         # mission recency breaks observed_at ties (captures seconds apart)
         self._mission_rank = {m["id"]: i for i, m in enumerate(ledger.missions())}
+        project_file = ledger.root / "project.json"
+        self._zones = {}
+        if project_file.exists():
+            import json
+
+            self._zones = json.loads(project_file.read_text()).get("zones") or {}
 
     def _latest(self, kind: str) -> dict | None:
         of_kind = [c for c in self.claims if c["kind"] == kind and c["status"] == "accepted"]
@@ -116,9 +122,12 @@ class SiteStateQuery:
             and c["payload"]["bbox"][1] <= y <= c["payload"]["bbox"][3]
         ]
 
+        from .design.zones import zone_of
+
         return {
             "point": [x, y],
             "version": self.version["id"],
+            "zone": zone_of(self._zones, x, y),
             "occupancy": _OCC_NAMES.get(occ_val, "no_data"),
             "coverage": _COV_NAMES.get(cov_val, "no_data"),
             "traversability": _TRAV_NAMES.get(trav_val, "no_data"),

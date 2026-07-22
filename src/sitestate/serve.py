@@ -115,7 +115,8 @@ svg.addEventListener('click', async (e) => {{
       ` (conf ${{(c.confidence ?? 0).toFixed(2)}})</li>`).join('') || '<li>none</li>';
   document.getElementById('out').innerHTML = `
     <dl>
-    <dt>point</dt><dd>(${{wx.toFixed(2)}}, ${{wy.toFixed(2)}}) m</dd>
+    <dt>point</dt><dd>(${{wx.toFixed(2)}}, ${{wy.toFixed(2)}}) m
+      ${{d.zone ? '· ' + d.zone : ''}}</dd>
     <dt>occupancy</dt><dd>${{d.occupancy}}</dd>
     <dt>coverage</dt><dd>${{d.coverage}}</dd>
     <dt>traversability</dt><dd>${{d.traversability}}</dd>

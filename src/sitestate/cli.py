@@ -163,11 +163,13 @@ def cmd_review(args) -> None:
 def cmd_export(args) -> None:
     from .outputs import HtmlReport, JsonPackageExport
     from .outputs.costmap_export import RobotCostmapExport
+    from .outputs.scenegraph_export import SceneGraphExport
 
     adapters = {
         "html": HtmlReport,
         "json": JsonPackageExport,
         "costmap": RobotCostmapExport,
+        "scenegraph": SceneGraphExport,
     }
     ledger = _ledger(args)
     version = _latest_version(ledger, args.version)
@@ -247,7 +249,7 @@ def main(argv: list[str] | None = None) -> None:
     sp.set_defaults(fn=cmd_review)
 
     sp = with_project(sub.add_parser("export", help="export a version"))
-    sp.add_argument("--format", choices=["html", "json", "costmap"], required=True)
+    sp.add_argument("--format", choices=["html", "json", "costmap", "scenegraph"], required=True)
     sp.add_argument("--out", required=True)
     sp.add_argument("--version", default="")
     sp.set_defaults(fn=cmd_export)

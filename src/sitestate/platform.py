@@ -254,6 +254,7 @@ def load_platform(root: str | Path) -> SiteStatePlatform:
     with every built-in processing plug-in and output adapter registered."""
     from .outputs import HtmlReport, JsonPackageExport
     from .outputs.costmap_export import RobotCostmapExport
+    from .outputs.scenegraph_export import SceneGraphExport
     from .processing import ALL_PLUGINS
 
     platform = SiteStatePlatform(root)  # project=None -> reads project.json
@@ -262,4 +263,5 @@ def load_platform(root: str | Path) -> SiteStatePlatform:
     platform.register_output(HtmlReport())
     platform.register_output(JsonPackageExport())
     platform.register_output(RobotCostmapExport())
+    platform.register_output(SceneGraphExport())
     return platform

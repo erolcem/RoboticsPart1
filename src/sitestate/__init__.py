@@ -27,4 +27,4 @@ Extension tutorial in executable form: examples/custom_asset_tracking.py.
 from .platform import SiteStatePlatform, load_platform
 
 __all__ = ["SiteStatePlatform", "load_platform"]
-__version__ = "2.0.1"
+__version__ = "2.1.0"

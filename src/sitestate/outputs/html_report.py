@@ -440,18 +440,26 @@ class HtmlReport(OutputAdapter):
             "affects.</p>"
         )
 
-        # sensors
+        # sensors, grouped: the same physical configuration subscribed for
+        # several missions reads as one row with an instance count
         parts.append("<h2>Sensors and calibration</h2>")
         parts.append("<table><tr><th>Sensor</th><th>Type</th><th>Data types</th>"
-                     "<th>Calibration</th><th>Declared accuracy</th><th>Limitations</th></tr>")
+                     "<th>Calibration</th><th>Declared accuracy</th>"
+                     "<th>Limitations</th><th>Instances</th></tr>")
+        grouped: dict[tuple, list[dict]] = {}
         for s in ledger.sensors():
             m = s["manifest"]
+            key = (m["name"], m["sensor_type"], m["calibration_version"])
+            grouped.setdefault(key, []).append(s)
+        for (name, stype, cal), instances in grouped.items():
+            m = instances[0]["manifest"]
             parts.append(
-                f"<tr><td>{html.escape(m['name'])}<br><code>{s['id']}</code></td>"
-                f"<td>{m['sensor_type']}</td><td>{', '.join(m['data_types'])}</td>"
-                f"<td>{m['calibration_version']}</td>"
+                f"<tr><td>{html.escape(name)}</td>"
+                f"<td>{stype}</td><td>{', '.join(m['data_types'])}</td>"
+                f"<td>{cal}</td>"
                 f"<td class='small'>{html.escape(str(m['expected_accuracy']))}</td>"
-                f"<td class='small'>{html.escape('; '.join(m['limitations']))}</td></tr>"
+                f"<td class='small'>{html.escape('; '.join(m['limitations']))}</td>"
+                f"<td>{len(instances)}</td></tr>"
             )
         parts.append("</table>")
 

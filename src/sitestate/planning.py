@@ -33,6 +33,7 @@ def propose_capture_plan(
     version_id: str = "",
     min_target_cells: int = 12,
     max_targets: int = 12,
+    sensor_reach_m: float = 4.0,
 ) -> dict[str, Any]:
     q = SiteStateQuery(ledger, version_id)
     cov_claim = q._latest("coverage")
@@ -117,27 +118,44 @@ def propose_capture_plan(
             for t in targets
         ]
 
-    # greedy nearest-neighbour tour so the route is drivable in one pass
+    # expected information gain per viewpoint: poorly-observed cells within
+    # sensor reach (the active-SLAM criterion; see docs/sota-review.md §6)
+    pj, pi = np.nonzero(poorly)
+    px = x0 + (pi + 0.5) * res
+    py = y0 + (pj + 0.5) * res
+    for wp in waypoints:
+        within = (px - wp["x"]) ** 2 + (py - wp["y"]) ** 2 <= sensor_reach_m**2
+        wp["expected_gain_cells"] = int(within.sum())
+
+    # tour: human recapture requests keep priority; the rest are ordered
+    # greedily by information gain per metre of travel, so the first stops
+    # of the route buy the most map
     ordered: list[dict[str, Any]] = []
     remaining = waypoints[:]
     here = (waypoints[0]["x"], waypoints[0]["y"]) if waypoints else (0.0, 0.0)
     while remaining:
-        k = min(
+        k = max(
             range(len(remaining)),
-            key=lambda i: math.hypot(remaining[i]["x"] - here[0], remaining[i]["y"] - here[1]),
+            key=lambda i: (
+                remaining[i]["reason"] == "recapture_requested",
+                (remaining[i].get("expected_gain_cells", 0) + 1)
+                / (1.0 + math.hypot(remaining[i]["x"] - here[0],
+                                    remaining[i]["y"] - here[1])),
+            ),
         )
         nxt = remaining.pop(k)
         ordered.append(nxt)
         here = (nxt["x"], nxt["y"])
 
     return {
-        "schema": "sitestate/capture-plan@1.0",
+        "schema": "sitestate/capture-plan@2.0",
         "version": q.version["id"],
         "n_targets": len(targets),
         "targets": targets,
         "waypoints": ordered,
         "notes": [
             "waypoints are traversable cells nearest to each poorly-observed region",
+            "ordered by expected information gain per metre of travel",
             "recapture_requested targets originate from human review and come first",
         ],
     }

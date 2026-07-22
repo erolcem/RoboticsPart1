@@ -1,5 +1,33 @@
 # Changelog
 
+## 2.1.0 — July 2026 (second SOTA round)
+
+Survey round two (docs/sota-review.md §6: robust estimation, active
+SLAM, scene graphs / lifelong mapping) and its implementations:
+
+- **Graduated non-convexity (GNC) robust kernel** for the pose graph's
+  scan-match factors (Geman-McClure with annealed control parameter,
+  after Yang et al. arXiv:1909.08605); Huber retained as an option. New
+  solver test: with 20 % gross (2 m) outlier factors, GNC recovers the
+  true trajectory to < 2 cm where Huber remains >3x more biased. Clean
+  benchmark numbers unchanged (1.1 cm trajectory RMSE).
+- **Information-gain capture planning** (capture-plan@2.0): every
+  waypoint carries `expected_gain_cells` (poorly-observed cells within
+  sensor reach) and the tour is ordered by gain per metre of travel;
+  human recapture requests keep priority.
+- **Scene-graph export** (`scene-graph`, scene_graph.json@1.0):
+  Hydra/Khronos-style layered site -> zones -> entities/assets with
+  change/deviation nodes and typed edges (`in_zone`, `changed_since`,
+  `deviates_from_plan`); every node keeps its claim id so provenance is
+  one trace away. Registered in demo, load_platform and `sitestate
+  export --format scenegraph`.
+- Query API and viewer now report the **zone** at the queried point;
+  report groups identical sensor configurations with instance counts;
+  benchmark verbose output handles the no-unflagged-changes edge.
+- New docs: **docs/api-reference.md** (supported Python surface) and
+  **CONTRIBUTING.md** (benchmark discipline, contract rules, honesty
+  invariants, change checklist). 37 tests.
+
 ## 2.0.1 — July 2026 (polish & hardening)
 
 - **Strict JSON everywhere**: non-finite floats (NaN/Infinity) are

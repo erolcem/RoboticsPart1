@@ -15,6 +15,7 @@ from pathlib import Path
 from . import SiteStatePlatform
 from .outputs import HtmlReport, JsonPackageExport
 from .outputs.costmap_export import RobotCostmapExport
+from .outputs.scenegraph_export import SceneGraphExport
 from .processing import ALL_PLUGINS
 from .sensors import (
     SimCarrier,
@@ -113,6 +114,7 @@ def make_platform(project_dir: str | Path) -> SiteStatePlatform:
     platform.register_output(HtmlReport())
     platform.register_output(JsonPackageExport())
     platform.register_output(RobotCostmapExport())
+    platform.register_output(SceneGraphExport())
     return platform
 
 
@@ -141,6 +143,7 @@ def run_full_demo(out_dir: str | Path = "demo_output", verbose: bool = True):
     files = platform.export("html-report", version.id, root)
     files += platform.export("json-package", version.id, root)
     files += platform.export("robot-costmap", version.id, root)
+    files += platform.export("scene-graph", version.id, root)
 
     if verbose:
         _print_results(platform, files)

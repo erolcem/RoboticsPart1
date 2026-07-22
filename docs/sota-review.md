@@ -124,7 +124,45 @@ The prerequisite for any of it is *measuring* calibration.
   held-out capture set) are a natural `ProcessingPlugin` decorator once
   real-site calibration data exists.
 
-## 6. What v2 deliberately does NOT chase
+## 6. Second-round survey (v2.1 additions)
+
+**Robust estimation.** [Graduated non-convexity (Yang et al., arXiv:1909.08605)](https://arxiv.org/abs/1909.08605)
+is the modern standard for outlier-robust spatial perception: where a
+Huber kernel only *reduces* an outlier's influence, GNC solves a
+sequence of increasingly non-convex surrogates and *rejects* gross
+outliers entirely (robust to 70–80 % outlier rates; also the core of
+TEASER++). [Adaptive GNC for pose graphs (arXiv:2308.11444)](https://arxiv.org/pdf/2308.11444)
+extends it with learned graduation schedules.
+**[implemented]** The pose-graph optimizer's scan-match factors now use
+a GNC Geman–McClure kernel with annealed control parameter (Huber kept
+as an option); a synthetic-outlier test shows GNC recovering the true
+trajectory where Huber alone stays biased.
+
+**Active SLAM / capture planning.** The exploration literature
+([Active SLAM review](https://www.mdpi.com/1424-8220/23/19/8097),
+[frontier management (arXiv:2310.01967)](https://arxiv.org/html/2310.01967v4))
+selects the next view by expected **information gain** traded against
+travel cost, not by nearest-frontier alone.
+**[implemented]** The capture planner now scores every candidate
+viewpoint by expected information gain (poorly-observed cells within
+sensor reach) and orders the tour greedily by gain per metre of travel;
+each waypoint carries its expected gain so an operator can triage.
+
+**Scene graphs & lifelong mapping.** [Hydra](https://www.researchgate.net/publication/363364885_Hydra_A_Real-time_Spatial_Perception_System_for_3D_Scene_Graph_Construction_and_Optimization)
+established real-time 3D scene graphs (places → rooms → objects);
+[Khronos (RSS 2024)](https://arxiv.org/pdf/2508.17044) adds the
+spatio-temporal dimension — tracking short-term motion and long-term
+change — which is precisely this platform's claims-over-versions model.
+**[implemented]** A `scene-graph` output adapter exports the layered
+site → zones → entities/assets → changes structure with typed edges
+(`in_zone`, `changed_since`), machine-consumable by
+navigation/task-planning stacks and directly extensible toward
+Hydra-class representations.
+**[seam]** Open-vocabulary semantics (DualMap-style) and full dynamic
+scene-graph SLAM remain plug-in upgrades behind the `entity`/`change`
+claim kinds.
+
+## 7. What v2 deliberately does NOT chase
 
 - **Learned models in-core.** The platform is numpy-only by design; every
   learned model (SAM, Swin3D, 3DGS, learned change detection) enters as a

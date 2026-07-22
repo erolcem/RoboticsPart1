@@ -76,11 +76,39 @@ class PoseGraph:
                      w_xy: float, w_th: float) -> None:
         self.absolute.append((i, measured_pose, w_xy, w_th))
 
-    def optimize(self, iterations: int = 10, damping: float = 1e-6,
-                 huber_k: float = 0.15) -> tuple[int, float]:
+    def _absolute_weights(self, kernel: str, k: float, mu: float) -> np.ndarray:
+        """Per-factor robust weights for the scan-match (absolute) factors.
+
+        'gnc': graduated non-convexity with a Geman-McClure kernel
+        (Yang et al., arXiv:1909.08605) - starts near-convex (mu large,
+        weights ~1) and anneals toward the true non-convex kernel, which
+        REJECTS gross outliers rather than merely dampening them.
+        'huber': classic IRLS fallback, kept for comparison.
+        """
+        r2 = np.array([
+            (self.poses[i][0] - m[0]) ** 2 + (self.poses[i][1] - m[1]) ** 2
+            for i, m, _, _ in self.absolute
+        ])
+        if kernel == "huber":
+            norm = np.sqrt(r2)
+            return np.where(norm <= k, 1.0, k / np.maximum(norm, 1e-12))
+        mu_k2 = mu * k * k
+        return (mu_k2 / (r2 + mu_k2)) ** 2
+
+    def optimize(self, iterations: int = 12, damping: float = 1e-6,
+                 huber_k: float = 0.15, kernel: str = "gnc") -> tuple[int, float]:
         n = len(self.poses)
         cost = float("inf")
+        # GNC schedule: start near-convex, anneal the control parameter
+        mu = 1.0
+        if kernel == "gnc" and self.absolute:
+            r2_max = max(
+                (self.poses[i][0] - m[0]) ** 2 + (self.poses[i][1] - m[1]) ** 2
+                for i, m, _, _ in self.absolute
+            )
+            mu = max(1.0, 2.0 * r2_max / (huber_k * huber_k))
         for it in range(iterations):
+            abs_weights = self._absolute_weights(kernel, huber_k, mu)
             h = np.zeros((3 * n, 3 * n))
             b = np.zeros(3 * n)
             cost = 0.0
@@ -116,13 +144,10 @@ class PoseGraph:
                 b[3 * i:3 * i + 3] += w_s * (j.T @ r)
                 h[3 * i:3 * i + 3, 3 * i:3 * i + 3] += w_s * (j.T @ j)
 
-            for i, m, w_xy, w_th in self.absolute:
+            for f_idx, (i, m, w_xy, w_th) in enumerate(self.absolute):
                 pi = self.poses[i]
                 r = np.array([pi[0] - m[0], pi[1] - m[1], float(_wrap(pi[2] - m[2]))])
-                # Huber IRLS: down-weight scan matches whose position
-                # residual is large - they are likely wrong associations
-                norm = float(np.hypot(r[0], r[1]))
-                scale = 1.0 if norm <= huber_k else huber_k / norm
+                scale = float(abs_weights[f_idx])
                 w = np.diag([w_xy * scale, w_xy * scale, w_th * scale])
                 cost += float(r @ w @ r)
                 b[3 * i:3 * i + 3] += w @ r
@@ -135,7 +160,10 @@ class PoseGraph:
                 return it, cost
             self.poses += delta.reshape(n, 3)
             self.poses[:, 2] = _wrap(self.poses[:, 2])
-            if float(np.abs(delta).max()) < 1e-6:
+            converged = float(np.abs(delta).max()) < 1e-6
+            if kernel == "gnc" and mu > 1.0:
+                mu = max(1.0, mu / 1.4)  # anneal toward the true kernel
+            elif converged:
                 return it + 1, cost
         return iterations, cost
 
@@ -143,12 +171,12 @@ class PoseGraph:
 class PoseRefinement(ProcessingPlugin):
     _manifest = PluginManifest(
         name="pose-refinement",
-        version="2.0.0",
+        version="2.1.0",
         consumes=["scan_2d", "registration"],
         produces=["pose_corrections"],
         mode="offline",
         description="Pose-graph optimization: odometry + fiducial landmark + "
-                    "Huber-robust scan-match factors (Gauss-Newton)",
+                    "GNC-robust scan-match factors (Gauss-Newton)",
         validation="benchmark-validated",
     )
 
@@ -166,6 +194,7 @@ class PoseRefinement(ProcessingPlugin):
         sigma_fid: float = 0.02,
         sigma_icp_xy: float = 0.04,
         sigma_icp_th: float = 0.02,
+        robust_kernel: str = "gnc",
         **params,
     ) -> None:
         regs = ctx.claims("registration")
@@ -244,7 +273,7 @@ class PoseRefinement(ProcessingPlugin):
             icp_rmses.append(rmse)
             n_icp += 1
 
-        iterations, cost = graph.optimize()
+        iterations, cost = graph.optimize(kernel=robust_kernel)
 
         # sanity-bound corrections; revert any pose the optimizer flung away
         obs_ids, before, after = [], [], []
@@ -279,6 +308,7 @@ class PoseRefinement(ProcessingPlugin):
             payload={
                 "evidence_id": corr_ev,
                 "method": "pose-graph",
+                "robust_kernel": robust_kernel,
                 "n_scans": len(scans),
                 "n_refined": n_refined,
                 "factors": {

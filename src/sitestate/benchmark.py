@@ -206,9 +206,11 @@ def run_benchmark(
             runs.append(run_scenario(seed, Path(tmp)))
             if verbose:
                 r = runs[-1]
+                cp = r["change_precision"]
                 print(f"  seed {seed}: traj RMSE {r['trajectory_rmse_m'] * 100:.1f} cm | "
                       f"map P/R {r['map_precision']:.2f}/{r['map_recall']:.2f} | "
-                      f"change P/R {r['change_precision']:.2f}/{r['change_recall']:.2f} | "
+                      f"change P/R {cp if cp is None else format(cp, '.2f')}"
+                      f"/{r['change_recall']:.2f} | "
                       f"honesty {r['coverage_honesty']:.2f} | "
                       f"trace {r['traceability']:.2f} | {r['processing_latency_s']:.1f}s")
 

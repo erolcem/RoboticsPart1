@@ -1,4 +1,4 @@
-# Site State Platform — v2.0
+# Site State Platform — v2.1
 
 A plug-and-play sensing platform that converts evidence from robots and
 other sensor carriers into a **versioned, uncertainty-aware model of a
@@ -23,7 +23,7 @@ open demo_output/report.html          # the human-reviewable package
 sitestate serve --project demo_output/project_data
 #   -> http://127.0.0.1:8752/viewer   # click the map to query the site state
 sitestate benchmark --seeds 5         # score against simulation ground truth
-pytest tests/                         # 34 end-to-end tests (~2 min)
+pytest tests/                         # 37 end-to-end tests (~50 s)
 python examples/custom_asset_tracking.py   # extension tutorial, executable
 
 docker compose up --build             # or fully containerized:
@@ -39,12 +39,17 @@ completion correctly reads ≈ 0.96 against the seeded unbuilt wall ·
 ~1.3 s processing per two-mission scenario.** Confidence calibration
 (reliability bins + ECE) is measured and reported, not assumed.
 
-v2 is grounded in a state-of-the-art survey —
+v2 is grounded in a two-round state-of-the-art survey —
 **[docs/sota-review.md](docs/sota-review.md)** — mapping current research
-(factor-graph SLAM back-ends, KISS-ICP-style odometry, evidential
-occupancy grids, SAM-class change detection, scan-to-BIM segmentation,
-conformal calibration, 3DGS reality capture) to what is implemented
-in-core vs. what enters later through the plug-in seams.
+(factor-graph SLAM back-ends, KISS-ICP-style odometry, **graduated
+non-convexity robust estimation**, evidential occupancy grids, **active-SLAM
+information-gain planning**, **Hydra/Khronos-style scene graphs**,
+SAM-class change detection, scan-to-BIM segmentation, conformal
+calibration, 3DGS reality capture) to what is implemented in-core vs.
+what enters later through the plug-in seams. Developer docs:
+[api-reference](docs/api-reference.md) ·
+[data-reference](docs/data-reference.md) ·
+[deployment](docs/deployment.md) · [CONTRIBUTING](CONTRIBUTING.md).
 
 ---
 
@@ -92,11 +97,13 @@ pyproject.toml               packaging; `sitestate` CLI entry point
 CHANGELOG.md                 release history
 Dockerfile / docker-compose.yml / Makefile / .github/workflows/ci.yml
                              deployment + CI (see docs/deployment.md)
+CONTRIBUTING.md              working rules: benchmark discipline, contracts
 docs/data-reference.md       exact schemas: claims, evidence, APIs, exports
-docs/sota-review.md          state-of-the-art survey -> v2 design decisions
+docs/api-reference.md        supported Python surface, call by call
+docs/sota-review.md          two-round SOTA survey -> design decisions
 docs/deployment.md           bare-metal, Docker and CI deployment guide
 examples/demo_two_missions.py  thin wrapper around sitestate.demo
-tests/                       33 end-to-end tests (the acceptance criteria)
+tests/                       37 end-to-end tests (the acceptance criteria)
 src/sitestate/
 ├── core/entities.py         the 8 data entities + SensorManifest
 ├── ledger/ledger.py         observation ledger: SQLite + .npz blobs +
@@ -120,7 +127,7 @@ src/sitestate/
 │   ├── icp.py               shared rigid fit + vectorised 2D ICP
 │   ├── registration.py      control-point alignment (Kabsch + residuals)
 │   ├── refine.py            pose-graph optimization (odometry + landmark +
-│   │                        Huber-robust scan-match factors, Gauss-Newton)
+│   │                        GNC-robust scan-match factors, Gauss-Newton)
 │   ├── mapping.py           log-odds occupancy grid + evidential layer
 │   ├── coverage.py          per-cell + per-zone observation density
 │   ├── change.py            coverage-aware diff + artifact screening +
@@ -142,7 +149,8 @@ src/sitestate/
 │   ├── png.py               pure-stdlib PNG encoder (embedded evidence images)
 │   ├── html_report.py       human package: maps, layers, linked imagery, QA
 │   ├── json_export.py       machine package with resolved provenance
-│   └── costmap_export.py    robot costmap (npz+json) + planning scene
+│   ├── costmap_export.py    robot costmap (npz+json) + planning scene
+│   └── scenegraph_export.py layered scene graph (zones/entities/changes)
 ├── platform.py              SiteStatePlatform + process_all pipeline runner
 │                            + load_platform() factory
 ├── serve.py                 HTTP API + interactive /viewer (stdlib only)
